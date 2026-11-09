@@ -1,0 +1,98 @@
+name: Prepare portable workspace build kit
+
+on:
+  push:
+    branches: [mlgb-lightgun]
+    paths: [.github/workflows/workspace-build-kit.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  kit:
+    name: Package portable SDKs and complete source
+    runs-on: windows-2025-vs2026
+    timeout-minutes: 45
+    env:
+      COMPILER: msvc
+      QT_VER_MAIN: '6'
+      QT_VER: '6.12.0'
+      QT_VER_MSVC: msvc2022
+      QT_DATE: '202609280346'
+      LLVM_VER: '22.1.8'
+      VULKAN_VER: '1.4.341.1'
+      VULKAN_SDK_SHA: bcf2d75aa9556889ab974858666e20b3655b6055a0db704ccb47279ff33b5bfe
+      CCACHE_SHA: 859141059ac950e1e8cd042c66f842f26b9e3a62a1669a69fe6ba180cb58bbdf
+      CCACHE_BIN_DIR: 'C:\ccache_bin'
+      CCACHE_DIR: 'C:\ccache'
+      CCACHE_INODECACHE: 'true'
+      CCACHE_SLOPPINESS: time_macros
+      CCACHE_MAXSIZE: 2G
+      DEPS_CACHE_DIR: ./dependency_cache
+    steps:
+      - name: Check out the lightgun source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: false
+          persist-credentials: false
+
+      - name: Set up NuGet
+        uses: nuget/setup-nuget@v4
+
+      - name: Restore NuGet packages
+        run: nuget restore rpcs3.sln
+
+      - name: Set SDK paths
+        shell: pwsh
+        run: |
+          "QTDIR=C:\Qt\${{ env.QT_VER }}\${{ env.QT_VER_MSVC }}_64" >> $env:GITHUB_ENV
+          "VULKAN_SDK=C:\VulkanSDK\${{ env.VULKAN_VER }}" >> $env:GITHUB_ENV
+
+      - name: Get dependency cache keys
+        run: .ci/get_keys-windows.sh
+
+      - name: Restore downloaded dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.DEPS_CACHE_DIR }}
+          key: mlgb-windows-${{ env.QT_VER }}-${{ env.VULKAN_SDK_SHA }}-${{ env.CCACHE_SHA }}-${{ hashFiles('llvm.lock') }}
+
+      - name: Fetch source libraries and prepare build SDKs
+        run: |
+          .ci/setup-windows.sh
+
+
+      - name: Stage workspace files without machine settings or credentials
+        shell: pwsh
+        run: |
+          $kitRoot = Join-Path $env:RUNNER_TEMP 'mlgb-workspace-kit'
+          New-Item -ItemType Directory -Path $kitRoot -Force | Out-Null
+          $sourceTarget = Join-Path $kitRoot 'source'
+          robocopy $env:GITHUB_WORKSPACE $sourceTarget /E /XD .git dependency_cache artifacts /NFL /NDL /NJH /NJS
+          if ($LASTEXITCODE -gt 7) { throw 'Copying source dependencies failed.' }
+          robocopy $env:QTDIR (Join-Path $kitRoot 'Qt') /E /NFL /NDL /NJH /NJS
+          if ($LASTEXITCODE -gt 7) { throw 'Copying Qt SDK failed.' }
+          foreach ($part in @('Include','Lib')) {
+            robocopy (Join-Path $env:VULKAN_SDK $part) (Join-Path $kitRoot "VulkanSDK/$part") /E /NFL /NDL /NJH /NJS
+            if ($LASTEXITCODE -gt 7) { throw "Copying Vulkan $part failed." }
+          }
+          "Source commit: $env:GITHUB_SHA`nQt: $env:QT_VER`nVulkan: $env:VULKAN_VER`nLLVM: $env:LLVM_VER`nSDK files only. No local installers need running." | Set-Content (Join-Path $kitRoot 'BUILD-KIT.txt')
+          New-Item -ItemType Directory -Path artifacts -Force | Out-Null
+          7z a -t7z -m0=LZMA2 -mx3 "$env:GITHUB_WORKSPACE/artifacts/MLGB-Workspace-Build-Kit.7z" "$kitRoot/*"
+          if ($LASTEXITCODE -ne 0) { throw 'Packaging build kit failed.' }
+
+      - name: Upload portable workspace build kit
+        uses: actions/upload-artifact@v4
+        with:
+          name: MLGB-Workspace-Build-Kit
+          path: artifacts/MLGB-Workspace-Build-Kit.7z
+          compression-level: 0
+          retention-days: 7
+          if-no-files-found: error
+

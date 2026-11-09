@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <DebugInformationFormat>None</DebugInformationFormat>
+    </ClCompile>
+    <Link>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
+    </Link>
+    <PreBuildEvent Condition="'$(MSBuildProjectName)' == 'miniupnpc_static'">
+      <Command>echo Using pre-generated workspace miniupnpc headers</Command>
+    </PreBuildEvent>
+  </ItemDefinitionGroup>
+</Project>

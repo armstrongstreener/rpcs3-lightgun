@@ -27,9 +27,11 @@ if not defined VS_ROOT (
 call "%VS_ROOT%\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64
 if errorlevel 1 exit /b 1
 set "PATH=%QTDIR%\bin;%PATH%"
+set "_CL_=/Z7"
+python "%KIT_ROOT%\source\.ci\prepare-workspace-headers.py"
+if errorlevel 1 exit /b 1
 pushd "%KIT_ROOT%\source"
-msbuild rpcs3.sln /m:4 /p:Configuration=Release /p:Platform=x64 /p:PreferredToolArchitecture=x64 /p:UseMultiToolTask=true /v:minimal
+msbuild rpcs3.sln /m:1 /nr:false /p:Configuration=Release /p:Platform=x64 /p:PreferredToolArchitecture=x64 /p:UseMultiToolTask=false /p:MultiProcessorCompilation=true /p:CL_MPCount=4 /fl /flp:"LogFile=workspace-build.log;Verbosity=normal" /p:CustomAfterMicrosoftCommonTargets="%KIT_ROOT%\source\.ci\workspace-build.targets" /v:minimal
 set "BUILD_RESULT=%ERRORLEVEL%"
 popd
 exit /b %BUILD_RESULT%
-

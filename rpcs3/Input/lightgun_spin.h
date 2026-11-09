@@ -1,11 +1,18 @@
 #pragma once
 #include <cstdint>
 #include <cmath>
+#include <array>
 
 // One complete turn per press; holding the input does not repeat it.
 struct lightgun_spin
 {
     static constexpr std::uint64_t duration_us = 1'200'000;
+    // Horizontal arm orbit, in millimetres, relative to the starting sphere.
+    static constexpr float orbit_radius_mm = 600.f;
+    static std::array<float, 2> orbit(float angle)
+    {
+        return {orbit_radius_mm * std::sin(angle), orbit_radius_mm * (std::cos(angle) - 1.f)};
+    }
     bool held = false;
     bool active = false;
     std::uint64_t started = 0;

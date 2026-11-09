@@ -255,6 +255,7 @@ public:
 	std::array<std::deque<CellGemState>, CELL_GEM_MAX_NUM> mouse_history;
 	u64 mouse_history_epoch = 0;
 	std::array<lightgun_spin, CELL_GEM_MAX_NUM> mouse_spin;
+	std::array<ps_move_data::vect<3>, CELL_GEM_MAX_NUM> mouse_spin_origin;
 	std::array<u64, CELL_GEM_MAX_NUM> mouse_orientation_time{};
 	std::array<ps_move_data::vect<4>, CELL_GEM_MAX_NUM> mouse_previous_orientation{};
 
@@ -1920,18 +1921,32 @@ static inline void pos_to_gem_state(u32 gem_num, gem_config::gem_controller& con
 		auto& gem = g_fxo->get<gem_config>();
 		std::lock_guard history_lock(gem.mouse_history_mutex);
 		const u64 now = get_guest_system_time();
-		const float angle = gem.mouse_spin[gem_num].update(now, shoot_spin_enabled(gem_num) &&
+		auto& spin = gem.mouse_spin[gem_num];
+		const bool was_spinning = spin.active;
+		const float angle = spin.update(now, shoot_spin_enabled(gem_num) &&
 			(gem_state->pad.digitalbuttons & CELL_GEM_CTRL_SQUARE));
-		if (angle != 0.f)
+		auto& origin = gem.mouse_spin_origin[gem_num];
+		if (spin.active && !was_spinning)
 		{
-			// Turn around the synthetic stream's vertical (gravity) axis.
-			const float sz = std::sin(angle * .5f), cz = std::cos(angle * .5f);
-			const auto base = quat;
-			quat.x() = cz*base.x() - sz*base.y();
-			quat.y() = cz*base.y() + sz*base.x();
-			quat.z() = cz*base.z() + sz*base.w();
-			quat.w() = cz*base.w() - sz*base.z();
+			origin = ps_move_data::vect<3>({gem_state->pos[0], gem_state->pos[1], gem_state->pos[2]});
+			cellGem.notice("The Shoot P%d: started middle-button Showtime turn (yaw + 600 mm orbit)", gem_num + 1);
 		}
+		if (spin.active)
+		{
+			// The game's roundhouse detector checks horizontal facing directions
+			// AND sphere travel. Simulate the arm orbit during a body turn.
+			const float sy = std::sin(angle * .5f), cy = std::cos(angle * .5f);
+			const auto base = quat;
+			quat.x() = cy*base.x() + sy*base.z();
+			quat.y() = cy*base.y() + sy*base.w();
+			quat.z() = cy*base.z() - sy*base.x();
+			quat.w() = cy*base.w() - sy*base.y();
+			const auto offset = lightgun_spin::orbit(angle);
+			gem_state->pos[0] = origin.x() + offset[0];
+			gem_state->pos[1] = origin.y();
+			gem_state->pos[2] = origin.z() + offset[1];
+		}
+
 		// The virtual Square slot carries this gesture rather than a game button.
 		if (shoot_spin_enabled(gem_num)) gem_state->pad.digitalbuttons &= ~CELL_GEM_CTRL_SQUARE;
 		u64& previous_time = gem.mouse_orientation_time[gem_num];

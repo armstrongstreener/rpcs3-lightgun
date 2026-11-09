@@ -17,7 +17,7 @@
 #include <QMessageBox>
 #include <QVBoxLayout>
 
-LOG_CHANNEL(cfg_log, "CFG");
+// cfg_log is declared by emulated_pad_config.h through gem_config.h.
 
 constexpr u32 output_button_count = 8;
 constexpr u32 button_count = output_button_count * 2;
@@ -670,3 +670,4 @@ void raw_mouse_settings_dialog::reactivate_buttons()
 	m_mouse_release_timer.start(100ms);
 	m_update_timer.start(1000ms);
 }
+

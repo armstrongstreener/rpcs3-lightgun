@@ -13,6 +13,7 @@
 #include <QTabWidget>
 #include <QTimer>
 
+#include <string>
 #include <vector>
 #include <unordered_map>
 
@@ -29,6 +30,7 @@ private:
 	void add_tabs(QTabWidget* tabs);
 	void on_enumeration();
 	void reset_config();
+	void refresh_config_widgets();
 	void on_button_click(int id);
 	void mouse_press(std::string_view device_name, s32 button_code, bool pressed);
 	void key_press(std::string_view device_name, s32 scan_code, bool pressed);
@@ -37,6 +39,8 @@ private:
 	std::string get_current_device_name(int player);
 	void reactivate_buttons();
 
+	std::string m_profile_title_id;
+	QPushButton* m_profile_button = nullptr;
 	QTabWidget* m_tab_widget = nullptr;
 	std::vector<QComboBox*> m_device_combos;
 	std::vector<QDoubleSpinBox*> m_accel_spin_boxes;

@@ -6,6 +6,8 @@
 #include "Utilities/mutex.h"
 #include "Utilities/Thread.h"
 
+#include <array>
+
 class raw_mouse_handler;
 
 class raw_mouse
@@ -16,7 +18,10 @@ public:
 	virtual ~raw_mouse();
 
 	void update_window_handle();
-	display_handle_t window_handle() const { return m_window_handle; }
+	display_handle_t window_handle() const
+	{
+		return m_window_handle;
+	}
 
 	void center_cursor();
 
@@ -25,10 +30,19 @@ public:
 	void update_values(s32 scan_code, bool pressed);
 #endif
 
-	const std::string& device_name() const { return m_device_name; }
-	u32 index() const { return m_index; }
+	const std::string& device_name() const
+	{
+		return m_device_name;
+	}
+	u32 index() const
+	{
+		return m_index;
+	}
 	void set_index(u32 index);
-	void request_reload() { m_reload_requested = true; }
+	void request_reload()
+	{
+		m_reload_requested = true;
+	}
 
 private:
 	struct mouse_button
@@ -56,7 +70,8 @@ private:
 	int m_pos_y{};
 	float m_mouse_acceleration = 1.0f;
 	raw_mouse_handler* m_handler{};
-	std::map<u8, mouse_button> m_buttons;
+	std::map<u8, std::array<mouse_button, 2>> m_buttons;
+	std::map<u8, std::array<bool, 2>> m_button_states;
 	bool m_reload_requested = false;
 };
 
@@ -69,10 +84,19 @@ public:
 
 	void Init(const u32 max_connect) override;
 
-	void set_is_for_gui(bool value) { m_is_for_gui = value; }
-	bool is_for_gui() const { return m_is_for_gui; }
+	void set_is_for_gui(bool value)
+	{
+		m_is_for_gui = value;
+	}
+	bool is_for_gui() const
+	{
+		return m_is_for_gui;
+	}
 
-	const std::map<void*, raw_mouse>& get_mice() const { return m_raw_mice; };
+	const std::map<void*, raw_mouse>& get_mice() const
+	{
+		return m_raw_mice;
+	};
 
 	void set_mouse_press_callback(std::function<void(std::string_view, s32, bool)> cb)
 	{

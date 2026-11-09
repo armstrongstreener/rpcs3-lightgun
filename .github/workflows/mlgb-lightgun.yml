@@ -1,0 +1,120 @@
+name: Build MLGB Lightgun for Windows
+
+on:
+  push:
+    branches: [mlgb-lightgun]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: mlgb-lightgun-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BUILD_REPOSITORY_NAME: ${{ github.repository }}
+  BUILD_SOURCEBRANCHNAME: ${{ github.ref_name }}
+  BUILD_PR_NUMBER: ''
+  BUILD_SOURCEVERSION: ${{ github.sha }}
+  BUILD_ARTIFACTSTAGINGDIRECTORY: ${{ github.workspace }}/artifacts/
+
+jobs:
+  windows:
+    name: Portable Windows x64 build
+    runs-on: windows-2025-vs2026
+    timeout-minutes: 180
+    env:
+      COMPILER: msvc
+      QT_VER_MAIN: '6'
+      QT_VER: '6.12.0'
+      QT_VER_MSVC: msvc2022
+      QT_DATE: '202609280346'
+      LLVM_VER: '22.1.8'
+      VULKAN_VER: '1.4.341.1'
+      VULKAN_SDK_SHA: bcf2d75aa9556889ab974858666e20b3655b6055a0db704ccb47279ff33b5bfe
+      CCACHE_SHA: 859141059ac950e1e8cd042c66f842f26b9e3a62a1669a69fe6ba180cb58bbdf
+      CCACHE_BIN_DIR: 'C:\ccache_bin'
+      CCACHE_DIR: 'C:\ccache'
+      CCACHE_INODECACHE: 'true'
+      CCACHE_SLOPPINESS: time_macros
+      CCACHE_MAXSIZE: 2G
+      DEPS_CACHE_DIR: ./dependency_cache
+    steps:
+      - name: Check out the lightgun source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: false
+
+      - name: Set up NuGet
+        uses: nuget/setup-nuget@v4
+
+      - name: Restore NuGet packages
+        run: nuget restore rpcs3.sln
+
+      - name: Set SDK paths
+        shell: pwsh
+        run: |
+          "QTDIR=C:\Qt\${{ env.QT_VER }}\${{ env.QT_VER_MSVC }}_64" >> $env:GITHUB_ENV
+          "VULKAN_SDK=C:\VulkanSDK\${{ env.VULKAN_VER }}" >> $env:GITHUB_ENV
+
+      - name: Get dependency cache keys
+        run: .ci/get_keys-windows.sh
+
+      - name: Restore downloaded dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.DEPS_CACHE_DIR }}
+          key: mlgb-windows-${{ env.QT_VER }}-${{ env.VULKAN_SDK_SHA }}-${{ env.CCACHE_SHA }}-${{ hashFiles('llvm.lock') }}
+
+      - name: Fetch source libraries and prepare build SDKs
+        run: |
+          .ci/setup-windows.sh
+          .ci/setup-windows-ci-vars.sh win64 msvc
+
+      - name: Export build variables
+        run: |
+          while IFS='=' read -r key val; do
+            [[ -z "$key" || "$key" =~ ^# ]] && continue
+            echo "$key=$val" >> "$GITHUB_ENV"
+          done < .ci/ci-vars.env
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Compile the lightgun emulator
+        shell: pwsh
+        run: |
+          msbuild rpcs3.sln /p:Configuration=Release /v:minimal /p:Platform=x64 /p:PreferredToolArchitecture=x64 /p:CLToolPath=${{ env.CCACHE_BIN_DIR }} /p:UseMultiToolTask=true /p:CustomAfterMicrosoftCommonTargets="${{ github.workspace }}\buildfiles\msvc\ci_only.targets"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Record source revision and experimental status
+        run: |
+          {
+            echo "MLGB RPCS3 lightgun experimental build"
+            echo "Repository: $GITHUB_REPOSITORY"
+            echo "Commit: $GITHUB_SHA"
+            echo "Upstream base: 47599599a4cea37f350eb0936d7c5e4de6f7bf57"
+            echo "Compiled by GitHub Actions. Real lightgun/gameplay testing is still required."
+            echo "Save-state changes are not included."
+          } > bin/MLGB-BUILD.txt
+          cp MLGB-LIGHTGUN.md bin/MLGB-LIGHTGUN.md
+
+      - name: Package the portable emulator
+        run: |
+          mkdir -p "$BUILD_ARTIFACTSTAGINGDIRECTORY"
+          .ci/deploy-windows.sh
+
+      - name: Upload the portable test build
+        uses: actions/upload-artifact@v4
+        with:
+          name: MLGB-RPCS3-Lightgun-Windows-x64
+          path: ${{ env.BUILD_ARTIFACTSTAGINGDIRECTORY }}
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 14

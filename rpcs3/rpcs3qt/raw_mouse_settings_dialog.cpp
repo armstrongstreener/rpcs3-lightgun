@@ -8,18 +8,21 @@
 
 #include <QAbstractItemView>
 #include <QGroupBox>
+#include <QInputDialog>
+#include <QLineEdit>
 #include <QMessageBox>
 #include <QVBoxLayout>
 
 LOG_CHANNEL(cfg_log, "CFG");
 
-constexpr u32 button_count = 8;
+constexpr u32 output_button_count = 8;
+constexpr u32 button_count = output_button_count * 2;
 
 raw_mouse_settings_dialog::raw_mouse_settings_dialog(QWidget* parent)
 	: QDialog(parent)
 {
 	setObjectName("raw_mouse_settings_dialog");
-	setWindowTitle(tr("Configure Raw Mouse Handler"));
+	setWindowTitle(tr("Configure Lightguns / Raw Mouse"));
 	setAttribute(Qt::WA_DeleteOnClose);
 	setAttribute(Qt::WA_StyledBackground);
 	setModal(true);
@@ -33,32 +36,32 @@ raw_mouse_settings_dialog::raw_mouse_settings_dialog(QWidget* parent)
 	m_button_box->setStandardButtons(QDialogButtonBox::Apply | QDialogButtonBox::Cancel | QDialogButtonBox::Save | QDialogButtonBox::RestoreDefaults);
 
 	connect(m_button_box, &QDialogButtonBox::clicked, this, [this](QAbstractButton* button)
-	{
-		if (button == m_button_box->button(QDialogButtonBox::Apply))
 		{
-			g_cfg_raw_mouse.save();
-		}
-		else if (button == m_button_box->button(QDialogButtonBox::Save))
-		{
-			g_cfg_raw_mouse.save();
-			accept();
-		}
-		else if (button == m_button_box->button(QDialogButtonBox::RestoreDefaults))
-		{
-			if (QMessageBox::question(this, tr("Confirm Reset"), tr("Reset settings of all players?")) != QMessageBox::Yes)
-				return;
-			reset_config();
-		}
-		else if (button == m_button_box->button(QDialogButtonBox::Cancel))
-		{
-			// Restore config
-			if (!g_cfg_raw_mouse.load())
+			if (button == m_button_box->button(QDialogButtonBox::Apply))
 			{
-				cfg_log.notice("Could not restore raw mouse config. Using defaults.");
+				g_cfg_raw_mouse.save();
 			}
-			reject();
-		}
-	});
+			else if (button == m_button_box->button(QDialogButtonBox::Save))
+			{
+				g_cfg_raw_mouse.save();
+				accept();
+			}
+			else if (button == m_button_box->button(QDialogButtonBox::RestoreDefaults))
+			{
+				if (QMessageBox::question(this, tr("Confirm Reset"), tr("Reset settings of all players?")) != QMessageBox::Yes)
+					return;
+				reset_config();
+			}
+			else if (button == m_button_box->button(QDialogButtonBox::Cancel))
+			{
+				// Restore config
+				if (!g_cfg_raw_mouse.load(m_profile_title_id))
+				{
+					cfg_log.notice("Could not restore raw mouse config. Using defaults.");
+				}
+				reject();
+			}
+		});
 
 	if (!g_cfg_raw_mouse.load())
 	{
@@ -71,13 +74,13 @@ raw_mouse_settings_dialog::raw_mouse_settings_dialog(QWidget* parent)
 	g_raw_mouse_handler->set_is_for_gui(true);
 	g_raw_mouse_handler->Init(std::max(max_devices, ::size32(g_cfg_raw_mouse.players)));
 	g_raw_mouse_handler->set_mouse_press_callback([this](std::string_view device_name, s32 button_code, bool pressed)
-	{
-		mouse_press(device_name, button_code, pressed);
-	});
+		{
+			mouse_press(device_name, button_code, pressed);
+		});
 	g_raw_mouse_handler->set_key_press_callback([this](std::string_view device_name, s32 scan_code, bool pressed)
-	{
-		key_press(device_name, scan_code, pressed);
-	});
+		{
+			key_press(device_name, scan_code, pressed);
+		});
 
 	m_buttons = new QButtonGroup(this);
 	connect(m_buttons, &QButtonGroup::idClicked, this, &raw_mouse_settings_dialog::on_button_click);
@@ -85,47 +88,78 @@ raw_mouse_settings_dialog::raw_mouse_settings_dialog(QWidget* parent)
 	connect(&m_update_timer, &QTimer::timeout, this, &raw_mouse_settings_dialog::on_enumeration);
 
 	connect(&m_remap_timer, &QTimer::timeout, this, [this]()
-	{
-		auto button = m_buttons->button(m_button_id);
-
-		if (--m_seconds <= 0)
 		{
+			auto button = m_buttons->button(m_button_id);
+
+			if (--m_seconds <= 0)
+			{
+				if (button)
+				{
+					if (const int button_id = m_buttons->id(button); button_id >= 0)
+					{
+						auto& config = ::at32(g_cfg_raw_mouse.players, m_tab_widget->currentIndex());
+						const std::string name = raw_mouse_config::get_button_name(config->get_button_by_index(button_id % button_count).to_string());
+						button->setText(name.empty() ? QStringLiteral("-") : QString::fromStdString(name));
+					}
+				}
+				reactivate_buttons();
+				return;
+			}
 			if (button)
 			{
-				if (const int button_id = m_buttons->id(button); button_id >= 0)
-				{
-					auto& config = ::at32(g_cfg_raw_mouse.players, m_tab_widget->currentIndex());
-					const std::string name = raw_mouse_config::get_button_name(config->get_button_by_index(button_id % button_count).to_string());
-					button->setText(name.empty() ? QStringLiteral("-") : QString::fromStdString(name));
-				}
+				button->setText(tr("[ Waiting %1 ]").arg(m_seconds));
 			}
-			reactivate_buttons();
-			return;
-		}
-		if (button)
-		{
-			button->setText(tr("[ Waiting %1 ]").arg(m_seconds));
-		}
-	});
+		});
 
 	connect(&m_mouse_release_timer, &QTimer::timeout, this, [this]()
-	{
-		m_mouse_release_timer.stop();
-		m_disable_mouse_release_event = false;
-	});
+		{
+			m_mouse_release_timer.stop();
+			m_disable_mouse_release_event = false;
+		});
 
 	add_tabs(m_tab_widget);
 
+	m_profile_button = new QPushButton(tr("Profile: Global defaults"), this);
+	connect(m_profile_button, &QPushButton::clicked, this, [this]()
+		{
+			bool accepted = false;
+			const QString id = QInputDialog::getText(this, tr("Lightgun game profile"),
+				tr("Game title ID (for example BCUS98222). Leave blank for global defaults."),
+				QLineEdit::Normal, QString::fromStdString(m_profile_title_id), &accepted)
+		                           .trimmed()
+		                           .toUpper();
+			if (!accepted || id.toStdString() == m_profile_title_id)
+				return;
+			if (!id.isEmpty() && (id.size() != 9 || !std::all_of(id.begin(), id.end(), [](QChar c)
+														{
+															return (c >= QLatin1Char('A') && c <= QLatin1Char('Z')) || (c >= QLatin1Char('0') && c <= QLatin1Char('9'));
+														})))
+			{
+				QMessageBox::warning(this, tr("Invalid title ID"), tr("Enter a nine-character title ID using letters and numbers."));
+				return;
+			}
+			const auto choice = QMessageBox::question(this, tr("Change profile"), tr("Save the current profile before switching?"),
+				QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel, QMessageBox::Cancel);
+			if (choice == QMessageBox::Cancel)
+				return;
+			if (choice == QMessageBox::Save)
+				g_cfg_raw_mouse.save();
+			m_profile_title_id = id.toStdString();
+			g_cfg_raw_mouse.load(m_profile_title_id);
+			m_profile_button->setText(id.isEmpty() ? tr("Profile: Global defaults") : tr("Profile: %1").arg(id));
+			refresh_config_widgets();
+		});
+	v_layout->addWidget(m_profile_button);
 	v_layout->addWidget(m_tab_widget);
 	v_layout->addWidget(m_button_box);
 	setLayout(v_layout);
 
-	m_palette = m_push_buttons[0][CELL_MOUSE_BUTTON_1]->palette(); // save normal palette
+	m_palette = m_push_buttons[0][0]->palette(); // save normal palette
 
 	connect(m_tab_widget, &QTabWidget::currentChanged, this, [this](int index)
-	{
-		handle_device_change(get_current_device_name(index));
-	});
+		{
+			handle_device_change(get_current_device_name(index));
+		});
 
 	on_enumeration();
 
@@ -192,11 +226,11 @@ void raw_mouse_settings_dialog::add_tabs(QTabWidget* tabs)
 	ensure(!!tabs);
 
 	constexpr u32 max_items_per_column = 6;
-	int rows = button_count;
+	int rows = output_button_count;
 
-	for (u32 cols = 1; utils::aligned_div(button_count, cols) > max_items_per_column;)
+	for (u32 cols = 1; utils::aligned_div(output_button_count, cols) > max_items_per_column;)
 	{
-		rows = utils::aligned_div(button_count, ++cols);
+		rows = utils::aligned_div(output_button_count, ++cols);
 	}
 
 	constexpr usz players = g_cfg_raw_mouse.players.size();
@@ -226,21 +260,21 @@ void raw_mouse_settings_dialog::add_tabs(QTabWidget* tabs)
 		update_combo_box(player);
 
 		connect(combo, &QComboBox::currentIndexChanged, this, [this, player, combo](int index)
-		{
-			if (index < 0 || !combo)
-				return;
+			{
+				if (index < 0 || !combo)
+					return;
 
-			const QVariant data = combo->itemData(index);
-			if (!data.isValid() || !data.canConvert<QString>())
-				return;
+				const QVariant data = combo->itemData(index);
+				if (!data.isValid() || !data.canConvert<QString>())
+					return;
 
-			const std::string device_name = data.toString().toStdString();
+				const std::string device_name = data.toString().toStdString();
 
-			auto& config = ::at32(g_cfg_raw_mouse.players, player)->device;
-			config.from_string(device_name);
+				auto& config = ::at32(g_cfg_raw_mouse.players, player)->device;
+				config.from_string(device_name);
 
-			handle_device_change(device_name);
-		});
+				handle_device_change(device_name);
+			});
 
 		h_layout->addWidget(combo);
 		gb->setLayout(h_layout);
@@ -248,29 +282,29 @@ void raw_mouse_settings_dialog::add_tabs(QTabWidget* tabs)
 
 		const int first_row = grid_layout->rowCount();
 
-		for (int i = 0, row = first_row, col = 0; i < static_cast<int>(button_count); i++, row++)
+		for (int i = 0, row = first_row, col = 0; i < static_cast<int>(output_button_count); i++, row++)
 		{
 			const int cell_code = get_mouse_button_code(i);
 			const QString translated_cell_button = localized_emu::translated_mouse_button(cell_code);
 
 			QHBoxLayout* h_layout = new QHBoxLayout(this);
 			QGroupBox* gb = new QGroupBox(translated_cell_button, this);
-			QPushButton* pb = new QPushButton;
-
-			insert_button(static_cast<int>(player * button_count + i), pb);
-
-			const std::string saved_btn = raw_mouse_config::get_button_name(config->get_button(cell_code).to_string());
-
-			pb->setText(saved_btn.empty() ? QStringLiteral("-") : QString::fromStdString(saved_btn));
-
 			if (row >= rows + first_row)
 			{
 				row = first_row;
 				col++;
 			}
-
-			m_push_buttons[player][cell_code] = pb;
-			h_layout->addWidget(pb);
+			for (int slot = 0; slot < 2; slot++)
+			{
+				const int binding_index = i + slot * output_button_count;
+				QPushButton* pb = new QPushButton;
+				pb->setToolTip(slot == 0 ? tr("Primary input (mouse or keyboard)") : tr("Alternative input: either binding activates this button"));
+				insert_button(static_cast<int>(player * button_count + binding_index), pb);
+				const std::string saved_btn = raw_mouse_config::get_button_name(config->get_button_by_index(binding_index).to_string());
+				pb->setText(saved_btn.empty() ? QStringLiteral("-") : QString::fromStdString(saved_btn));
+				m_push_buttons[player][binding_index] = pb;
+				h_layout->addWidget(pb);
+			}
 			gb->setLayout(h_layout);
 			grid_layout->addWidget(gb, row, col);
 		}
@@ -282,10 +316,10 @@ void raw_mouse_settings_dialog::add_tabs(QTabWidget* tabs)
 		mouse_acceleration_spin_box->setRange(0.1, 10.0);
 		mouse_acceleration_spin_box->setValue(config->mouse_acceleration.get() / 100.0);
 		connect(mouse_acceleration_spin_box, &QDoubleSpinBox::valueChanged, this, [player](double value)
-		{
-			auto& config = ::at32(g_cfg_raw_mouse.players, player)->mouse_acceleration;
-			config.set(std::clamp(value * 100.0, config.min, config.max));
-		});
+			{
+				auto& config = ::at32(g_cfg_raw_mouse.players, player)->mouse_acceleration;
+				config.set(std::clamp(value * 100.0, config.min, config.max));
+			});
 
 		h_layout->addWidget(mouse_acceleration_spin_box);
 		gb->setLayout(h_layout);
@@ -324,17 +358,21 @@ void raw_mouse_settings_dialog::on_enumeration()
 void raw_mouse_settings_dialog::reset_config()
 {
 	g_cfg_raw_mouse.from_default();
+	refresh_config_widgets();
+}
 
+void raw_mouse_settings_dialog::refresh_config_widgets()
+{
 	for (usz player = 0; player < m_push_buttons.size(); player++)
 	{
 		auto& config = ::at32(g_cfg_raw_mouse.players, player);
 
-		for (auto& [cell_code, pb] : m_push_buttons[player])
+		for (auto& [binding_index, pb] : m_push_buttons[player])
 		{
 			if (!pb)
 				continue;
 
-			const std::string text = raw_mouse_config::get_button_name(config->get_button(cell_code).def);
+			const std::string text = raw_mouse_config::get_button_name(config->get_button_by_index(binding_index).to_string());
 			pb->setText(text.empty() ? QStringLiteral("-") : QString::fromStdString(text));
 		}
 
@@ -430,7 +468,10 @@ bool raw_mouse_settings_dialog::is_device_active(std::string_view device_name)
 
 	const auto& mice = g_raw_mouse_handler->get_mice();
 
-	return std::any_of(mice.cbegin(), mice.cend(), [&device_name](const auto& entry){ return entry.second.device_name() == device_name; });
+	return std::any_of(mice.cbegin(), mice.cend(), [&device_name](const auto& entry)
+		{
+			return entry.second.device_name() == device_name;
+		});
 }
 
 std::string raw_mouse_settings_dialog::get_current_device_name(int player)
@@ -508,6 +549,7 @@ void raw_mouse_settings_dialog::on_button_click(int id)
 		but->setFocusPolicy(Qt::ClickFocus);
 	}
 
+	m_profile_button->setEnabled(false);
 	m_button_box->setEnabled(false);
 	for (auto but : m_button_box->buttons())
 	{
@@ -548,6 +590,7 @@ void raw_mouse_settings_dialog::reactivate_buttons()
 	}
 
 	// Enable all buttons
+	m_profile_button->setEnabled(true);
 	m_button_box->setEnabled(true);
 
 	for (auto but : m_button_box->buttons())

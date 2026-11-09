@@ -16,6 +16,14 @@ cfg::string& raw_mouse_config::get_button_by_index(int index)
 	case 5: return mouse_button_6;
 	case 6: return mouse_button_7;
 	case 7: return mouse_button_8;
+	case 8: return mouse_button_1_alternate;
+	case 9: return mouse_button_2_alternate;
+	case 10: return mouse_button_3_alternate;
+	case 11: return mouse_button_4_alternate;
+	case 12: return mouse_button_5_alternate;
+	case 13: return mouse_button_6_alternate;
+	case 14: return mouse_button_7_alternate;
+	case 15: return mouse_button_8_alternate;
 	default: fmt::throw_exception("Invalid index %d", index);
 	}
 }
@@ -70,7 +78,7 @@ std::string raw_mouse_config::get_button_name(s32 button_code)
 std::string raw_mouse_config::get_key_name(s32 scan_code)
 {
 #ifdef _WIN32
-	TCHAR name_buf[MAX_PATH] {};
+	TCHAR name_buf[MAX_PATH]{};
 	if (!GetKeyNameTextW(scan_code, name_buf, MAX_PATH))
 	{
 		cfg_log.error("raw_mouse_config: GetKeyNameText failed: %s", fmt::win_error{GetLastError(), nullptr});
@@ -91,31 +99,47 @@ raw_mice_config::raw_mice_config()
 	}
 }
 
-bool raw_mice_config::load()
+bool raw_mice_config::load(const std::string& title_id)
 {
-	m_mutex.lock();
+	std::lock_guard lock(m_mutex);
 
-	bool result = false;
-	const std::string cfg_name = fmt::format("%s%s.yml", fs::get_config_dir(true), cfg_id);
-	cfg_log.notice("Loading %s config: %s", cfg_id, cfg_name);
+	// Title IDs are directory names, never arbitrary paths supplied by a profile.
+	if (!title_id.empty() && (title_id.size() != 9 || !std::all_of(title_id.begin(), title_id.end(), [](char c)
+														  {
+															  return (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9');
+														  })))
+	{
+		cfg_log.error("Invalid lightgun profile title ID: %s", title_id);
+		return false;
+	}
 
+	m_title_id = title_id;
 	from_default();
-
-	if (fs::file cfg_file{ cfg_name, fs::read })
+	const std::string global_name = fmt::format("%s%s.yml", fs::get_config_dir(true), cfg_id);
+	bool result = true;
+	if (fs::file file{global_name, fs::read})
 	{
-		if (const std::string content = cfg_file.to_string(); !content.empty())
+		const std::string content = file.to_string();
+		result = content.empty() || from_string(content);
+	}
+
+	if (!m_title_id.empty())
+	{
+		const std::string profile_name = fmt::format("%sinput_configs/lightgun/%s/%s.yml", fs::get_config_dir(true), m_title_id, cfg_id);
+		cfg_log.notice("Loading lightgun profile: %s", profile_name);
+		if (fs::file file{profile_name, fs::read})
 		{
-			result = from_string(content);
+			const std::string inherited = to_string();
+			if (const std::string content = file.to_string(); !content.empty() && !from_string(content))
+			{
+				from_string(inherited);
+				cfg_log.error("Invalid lightgun profile: %s. Using global bindings.", profile_name);
+				result = false;
+			}
 		}
-
-		m_mutex.unlock();
-	}
-	else
-	{
-		m_mutex.unlock();
-		save();
 	}
 
+	reload_requested = true;
 	return result;
 }
 
@@ -123,7 +147,7 @@ void raw_mice_config::save()
 {
 	std::lock_guard lock(m_mutex);
 
-	const std::string cfg_name = fmt::format("%s%s.yml", fs::get_config_dir(true), cfg_id);
+	const std::string cfg_name = m_title_id.empty() ? fmt::format("%s%s.yml", fs::get_config_dir(true), cfg_id) : fmt::format("%sinput_configs/lightgun/%s/%s.yml", fs::get_config_dir(true), m_title_id, cfg_id);
 	cfg_log.notice("Saving %s config to '%s'", cfg_id, cfg_name);
 
 	if (!fs::create_path(fs::get_parent_dir(cfg_name)))

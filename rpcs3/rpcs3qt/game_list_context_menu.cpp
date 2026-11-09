@@ -9,6 +9,7 @@
 #include "steam_utils.h"
 #include "settings_dialog.h"
 #include "pad_settings_dialog.h"
+#include "raw_mouse_settings_dialog.h"
 #include "patch_manager_dialog.h"
 #include "persistent_settings.h"
 #include "config_database.h"
@@ -16,6 +17,7 @@
 
 #include "Utilities/File.h"
 #include "Emu/system_utils.hpp"
+#include "Emu/System.h"
 #include "Loader/ISO.h"
 #include "Loader/content_validation.h"
 
@@ -695,6 +697,16 @@ void game_list_context_menu::show_single_selection_context_menu(const game_info&
 		sys_log.notice("Booting from gamelist per context menu...");
 		Q_EMIT m_game_list_frame->RequestBoot(gameinfo, cfg_mode::database_config);
 	});
+
+#ifdef _WIN32
+    QAction* lightgun_profile = addAction(tr("Configure Lightgun Profile"));
+    lightgun_profile->setEnabled(Emu.IsStopped());
+    connect(lightgun_profile, &QAction::triggered, m_game_list_frame, [this, serial]()
+    {
+        auto* dlg = new raw_mouse_settings_dialog(m_game_list_frame, serial);
+        dlg->show();
+    });
+#endif
 
 	const auto configure_game = [this, current_game, gameinfo](bool create_cfg_from_global_cfg, bool create_cfg_from_database)
 	{

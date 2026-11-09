@@ -49,3 +49,16 @@ additional emulator branding are not implemented in this checkpoint.
 
 The changes were prepared with AI assistance and require continued build and
 gameplay validation. RPCS3's existing license files and source history apply.
+
+## Game profile screen
+
+On Windows, right-click a stopped game and choose **Configure Lightgun Profile**.
+The profile opens for that game's title ID. Rows show the actual PS Move actions
+currently routed to each virtual mouse button, alongside Primary and Alternative
+bindings. Optional game action labels are editable notes and are saved per profile;
+they do not change the routed PS Move button or establish a verified game control.
+
+The Shoot USA (BCUS98222) is the first acceptance target. Verify camera detection,
+P1 calibration, menu control and gameplay before testing P2 and any game-specific
+motion requirements. No calibration bypass or game-specific motion fix is included.
+

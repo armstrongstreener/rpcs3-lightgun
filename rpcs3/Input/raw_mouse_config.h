@@ -47,6 +47,16 @@ public:
 	cfg::string mouse_button_7_alternate{this, "Button 7 Alternate", "", true};
 	cfg::string mouse_button_8_alternate{this, "Button 8 Alternate", "", true};
 
+	cfg::string action_label_1{this, "Action 1 Label", "", true};
+	cfg::string action_label_2{this, "Action 2 Label", "", true};
+	cfg::string action_label_3{this, "Action 3 Label", "", true};
+	cfg::string action_label_4{this, "Action 4 Label", "", true};
+	cfg::string action_label_5{this, "Action 5 Label", "", true};
+	cfg::string action_label_6{this, "Action 6 Label", "", true};
+	cfg::string action_label_7{this, "Action 7 Label", "", true};
+	cfg::string action_label_8{this, "Action 8 Label", "", true};
+
+	cfg::string& get_action_label_by_index(int index);
 	cfg::string& get_button_by_index(int index);
 	cfg::string& get_button(int code);
 

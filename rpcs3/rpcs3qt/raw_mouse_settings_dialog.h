@@ -8,11 +8,13 @@
 #include <QDialog>
 #include <QDoubleSpinBox>
 #include <QMouseEvent>
+#include <QLineEdit>
 #include <QPalette>
 #include <QPushButton>
 #include <QTabWidget>
 #include <QTimer>
 
+#include <array>
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -22,7 +24,7 @@ class raw_mouse_settings_dialog : public QDialog
 	Q_OBJECT
 
 public:
-	raw_mouse_settings_dialog(QWidget* parent = nullptr);
+	raw_mouse_settings_dialog(QWidget* parent = nullptr, const std::string& title_id = {});
 	virtual ~raw_mouse_settings_dialog();
 
 private:
@@ -31,6 +33,7 @@ private:
 	void on_enumeration();
 	void reset_config();
 	void refresh_config_widgets();
+	QString action_title(usz player, int button_index) const;
 	void on_button_click(int id);
 	void mouse_press(std::string_view device_name, s32 button_code, bool pressed);
 	void key_press(std::string_view device_name, s32 scan_code, bool pressed);
@@ -44,6 +47,7 @@ private:
 	QTabWidget* m_tab_widget = nullptr;
 	std::vector<QComboBox*> m_device_combos;
 	std::vector<QDoubleSpinBox*> m_accel_spin_boxes;
+	std::vector<std::array<QLineEdit*, 8>> m_action_labels;
 
 	// Buttons
 	QDialogButtonBox* m_button_box = nullptr;

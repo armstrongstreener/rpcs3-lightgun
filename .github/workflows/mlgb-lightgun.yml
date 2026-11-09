@@ -14,7 +14,7 @@ defaults:
 
 concurrency:
   group: mlgb-lightgun-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
   BUILD_REPOSITORY_NAME: ${{ github.repository }}

@@ -4,12 +4,16 @@
 #include "gui_application.h"
 #include "Input/raw_mouse_config.h"
 #include "Input/raw_mouse_handler.h"
+#include "Emu/Io/gem_config.h"
 #include "util/asm.hpp"
 
 #include <QAbstractItemView>
 #include <QGroupBox>
 #include <QInputDialog>
 #include <QLineEdit>
+#include <QLabel>
+#include <QSignalBlocker>
+#include <QStringList>
 #include <QMessageBox>
 #include <QVBoxLayout>
 
@@ -18,8 +22,8 @@ LOG_CHANNEL(cfg_log, "CFG");
 constexpr u32 output_button_count = 8;
 constexpr u32 button_count = output_button_count * 2;
 
-raw_mouse_settings_dialog::raw_mouse_settings_dialog(QWidget* parent)
-	: QDialog(parent)
+raw_mouse_settings_dialog::raw_mouse_settings_dialog(QWidget* parent, const std::string& title_id)
+	: QDialog(parent), m_profile_title_id(title_id)
 {
 	setObjectName("raw_mouse_settings_dialog");
 	setWindowTitle(tr("Configure Lightguns / Raw Mouse"));
@@ -63,10 +67,12 @@ raw_mouse_settings_dialog::raw_mouse_settings_dialog(QWidget* parent)
 			}
 		});
 
-	if (!g_cfg_raw_mouse.load())
+	if (!g_cfg_raw_mouse.load(m_profile_title_id))
 	{
 		cfg_log.notice("Could not load raw mouse config. Using defaults.");
 	}
+
+	g_cfg_gem_mouse.load(); // Display the actual virtual-button to PS Move mapping.
 
 	constexpr u32 max_devices = 16;
 
@@ -119,7 +125,7 @@ raw_mouse_settings_dialog::raw_mouse_settings_dialog(QWidget* parent)
 
 	add_tabs(m_tab_widget);
 
-	m_profile_button = new QPushButton(tr("Profile: Global defaults"), this);
+	m_profile_button = new QPushButton(m_profile_title_id.empty() ? tr("Profile: Global defaults") : tr("Profile: %1").arg(QString::fromStdString(m_profile_title_id)), this);
 	connect(m_profile_button, &QPushButton::clicked, this, [this]()
 		{
 			bool accepted = false;
@@ -150,6 +156,9 @@ raw_mouse_settings_dialog::raw_mouse_settings_dialog(QWidget* parent)
 			refresh_config_widgets();
 		});
 	v_layout->addWidget(m_profile_button);
+	QLabel* mapping_note = new QLabel(tr("Each PS Move action accepts either binding. Optional game labels are notes; verify them in the game.\nPS Move action routing is read from Configuration > PS Move > Mouse."), this);
+	mapping_note->setWordWrap(true);
+	v_layout->addWidget(mapping_note);
 	v_layout->addWidget(m_tab_widget);
 	v_layout->addWidget(m_button_box);
 	setLayout(v_layout);
@@ -236,6 +245,7 @@ void raw_mouse_settings_dialog::add_tabs(QTabWidget* tabs)
 	constexpr usz players = g_cfg_raw_mouse.players.size();
 
 	m_push_buttons.resize(players);
+	m_action_labels.resize(players);
 
 	ensure(g_raw_mouse_handler);
 
@@ -284,8 +294,7 @@ void raw_mouse_settings_dialog::add_tabs(QTabWidget* tabs)
 
 		for (int i = 0, row = first_row, col = 0; i < static_cast<int>(output_button_count); i++, row++)
 		{
-			const int cell_code = get_mouse_button_code(i);
-			const QString translated_cell_button = localized_emu::translated_mouse_button(cell_code);
+			const QString translated_cell_button = action_title(player, i);
 
 			QHBoxLayout* h_layout = new QHBoxLayout(this);
 			QGroupBox* gb = new QGroupBox(translated_cell_button, this);
@@ -294,6 +303,17 @@ void raw_mouse_settings_dialog::add_tabs(QTabWidget* tabs)
 				row = first_row;
 				col++;
 			}
+			QVBoxLayout* action_layout = new QVBoxLayout;
+			QLineEdit* label = new QLineEdit(QString::fromStdString(config->get_action_label_by_index(i).to_string()));
+			label->setPlaceholderText(tr("Game action label (optional)"));
+			label->setMaxLength(64);
+			label->setToolTip(tr("A descriptive note such as Reload. This does not change the PS Move action."));
+			m_action_labels[player][i] = label;
+			connect(label, &QLineEdit::textEdited, this, [player, i](const QString& text)
+				{
+					::at32(g_cfg_raw_mouse.players, player)->get_action_label_by_index(i).from_string(text.toStdString());
+				});
+			action_layout->addWidget(label);
 			for (int slot = 0; slot < 2; slot++)
 			{
 				const int binding_index = i + slot * output_button_count;
@@ -303,9 +323,13 @@ void raw_mouse_settings_dialog::add_tabs(QTabWidget* tabs)
 				const std::string saved_btn = raw_mouse_config::get_button_name(config->get_button_by_index(binding_index).to_string());
 				pb->setText(saved_btn.empty() ? QStringLiteral("-") : QString::fromStdString(saved_btn));
 				m_push_buttons[player][binding_index] = pb;
-				h_layout->addWidget(pb);
+				QVBoxLayout* binding_layout = new QVBoxLayout;
+				binding_layout->addWidget(new QLabel(slot == 0 ? tr("Primary") : tr("Alternative")));
+				binding_layout->addWidget(pb);
+				h_layout->addLayout(binding_layout);
 			}
-			gb->setLayout(h_layout);
+			action_layout->addLayout(h_layout);
+			gb->setLayout(action_layout);
 			grid_layout->addWidget(gb, row, col);
 		}
 
@@ -328,6 +352,23 @@ void raw_mouse_settings_dialog::add_tabs(QTabWidget* tabs)
 		widget->setLayout(grid_layout);
 		tabs->addTab(widget, tr("Player %0").arg(player + 1));
 	}
+}
+
+QString raw_mouse_settings_dialog::action_title(usz player, int button_index) const
+{
+	const auto virtual_button = static_cast<pad_button>(static_cast<int>(pad_button::mouse_button_1) + button_index);
+	const std::array<std::pair<gem_btn, QString>, 8> actions{{{gem_btn::t, tr("T / Trigger")}, {gem_btn::move, tr("Move")},
+		{gem_btn::square, tr("Square")}, {gem_btn::circle, tr("Circle")},
+		{gem_btn::cross, tr("Cross")}, {gem_btn::start, tr("Start")},
+		{gem_btn::select, tr("Select")}, {gem_btn::triangle, tr("Triangle")}}};
+	QStringList names;
+	for (const auto& [action, name] : actions)
+	{
+		if (::at32(g_cfg_gem_mouse.players, player)->get_pad_button(action) == virtual_button)
+			names << name;
+	}
+	const QString button_name = localized_emu::translated_mouse_button(get_mouse_button_code(button_index));
+	return names.empty() ? tr("Unassigned (%1)").arg(button_name) : tr("%1 (%2)").arg(names.join(QStringLiteral(" + ")), button_name);
 }
 
 void raw_mouse_settings_dialog::on_enumeration()
@@ -366,6 +407,14 @@ void raw_mouse_settings_dialog::refresh_config_widgets()
 	for (usz player = 0; player < m_push_buttons.size(); player++)
 	{
 		auto& config = ::at32(g_cfg_raw_mouse.players, player);
+
+		for (int i = 0; i < static_cast<int>(output_button_count); i++)
+		{
+			QLineEdit* label = m_action_labels[player][i];
+			const QSignalBlocker blocker(label);
+			label->setText(QString::fromStdString(config->get_action_label_by_index(i).to_string()));
+		}
+		update_combo_box(player);
 
 		for (auto& [binding_index, pb] : m_push_buttons[player])
 		{

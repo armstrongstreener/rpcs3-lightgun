@@ -4,6 +4,22 @@
 
 LOG_CHANNEL(cfg_log, "CFG");
 
+cfg::string& raw_mouse_config::get_action_label_by_index(int index)
+{
+	switch (index)
+	{
+	case 0: return action_label_1;
+	case 1: return action_label_2;
+	case 2: return action_label_3;
+	case 3: return action_label_4;
+	case 4: return action_label_5;
+	case 5: return action_label_6;
+	case 6: return action_label_7;
+	case 7: return action_label_8;
+	default: fmt::throw_exception("Invalid action label index %d", index);
+	}
+}
+
 cfg::string& raw_mouse_config::get_button_by_index(int index)
 {
 	switch (index)

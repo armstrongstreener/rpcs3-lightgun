@@ -688,7 +688,7 @@ namespace gem
 		constexpr u32 in_pitch = 640;
 		constexpr u32 out_pitch = 640 * 4;
 
-		// Hamilton–Adams demosaicing
+		// Hamilton-Adams demosaicing
 		for (s32 y = 0; y < 480; y++)
 		{
 			const bool is_even_y = (y % 2) == 0;
@@ -2642,6 +2642,24 @@ static void mouse_pos_to_gem_state(u32 mouse_no, gem_config::gem_controller& con
 	{
 		ps_move_data& move_data = ::at32(g_fxo->get<gem_config>().fake_move_data, mouse_no);
 		pos_to_gem_state(mouse_no, controller, gem_state, mouse.x_pos, mouse.y_pos, move_data);
+
+		// Temporary, rate-limited diagnostics for the retail game's stuck menu cursor.
+		// Observe synthetic Move output without altering tracking or bypassing menus.
+		if (Emu.GetTitleID() == "BCUS98222" && mouse_no < CELL_GEM_MAX_NUM)
+		{
+			static std::array<atomic_t<u64>, CELL_GEM_MAX_NUM> last_log{};
+			const u64 now = get_guest_system_time();
+			if (now - last_log[mouse_no].load() >= 1'000'000)
+			{
+				last_log[mouse_no] = now;
+				cellGem.notice("The Shoot Move P%d: raw=(%f,%f) pos=(%f,%f,%f) quat=(%f,%f,%f,%f) buttons=0x%x T=%d tracking=%d visible=%d calibrated=%d hue=%d",
+					mouse_no + 1, mouse.x_pos, mouse.y_pos,
+					static_cast<f32>(gem_state->pos[0]), static_cast<f32>(gem_state->pos[1]), static_cast<f32>(gem_state->pos[2]),
+					static_cast<f32>(gem_state->quat[0]), static_cast<f32>(gem_state->quat[1]), static_cast<f32>(gem_state->quat[2]), static_cast<f32>(gem_state->quat[3]),
+					static_cast<u16>(gem_state->pad.digitalbuttons), static_cast<u16>(gem_state->pad.analog_T),
+					controller.enabled_tracking, controller.radius_valid, controller.calibrated_magnetometer, controller.hue_set);
+			}
+		}
 	}
 	else if constexpr (std::is_same_v<T, vm::ptr<CellGemImageState>>)
 	{
@@ -4299,3 +4317,4 @@ DECLARE(ppu_module_manager::cellGem)("libgem", []()
 	REG_FUNC(libgem, cellGemUpdateStart);
 	REG_FUNC(libgem, cellGemWriteExternalPort);
 });
+

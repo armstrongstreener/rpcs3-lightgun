@@ -18,6 +18,16 @@ rc += ''.join(f'#define LIBMINIUPNPC_{name}_VERSION {number}\n' for name, number
 (mini / 'rc_version.h').write_text(rc)
 print('Generated miniupnpc version headers without Windows Script Host or WMI.')
 
+# The SDK kit is a source archive, so submodule .git pointers have no index.
+# Use OpenAL's supported archive-build option rather than its Git version hook.
+openal = root / '3rdparty/openal/openal-soft.vcxproj'
+text = openal.read_text(encoding='utf-8')
+marker = '-DALSOFT_INSTALL=false ^'
+argument = '-DALSOFT_UPDATE_BUILD_VERSION=OFF ^'
+if argument not in text:
+    assert marker in text
+    openal.write_text(text.replace(marker, marker + '\n        ' + argument), encoding='utf-8')
+
 absl = root / '3rdparty/abseil-cpp'
 if not (absl / 'CMakeLists.txt').is_file():
     raise SystemExit('Offline Abseil 20250512.1 source is required at source/3rdparty/abseil-cpp.')
@@ -30,3 +40,4 @@ if argument not in text:
     text = text.replace(marker, marker + '\n        ' + argument)
     project.write_text(text, encoding='utf-8')
 print('Configured Protobuf to use the offline Abseil source.')
+

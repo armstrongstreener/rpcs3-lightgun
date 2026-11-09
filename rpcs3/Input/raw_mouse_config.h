@@ -28,6 +28,7 @@ public:
 	cfg::string device{this, "Device", ""};
 	cfg::_bool shoot_spin_360{this, "The Shoot Spin 360", false, true};
 	cfg::_bool shoot_point_down{this, "The Shoot Point Down", false, true};
+	cfg::_bool shoot_offscreen_middle{this, "The Shoot Offscreen Middle", false, true};
 
 	cfg::_float<10, 1000> mouse_acceleration{this, "Mouse Acceleration", 100.0f, true};
 

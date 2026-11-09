@@ -1868,6 +1868,13 @@ static bool shoot_point_down_enabled(u32 player)
 	return g_cfg_raw_mouse.players[player]->shoot_point_down.get();
 }
 
+static bool shoot_offscreen_middle_enabled(u32 player)
+{
+	if (!shoot_point_down_enabled(player)) return false;
+	reader_lock config_lock(g_cfg_raw_mouse.m_mutex);
+	return g_cfg_raw_mouse.players[player]->shoot_offscreen_middle.get();
+}
+
 static inline void pos_to_gem_state(u32 gem_num, gem_config::gem_controller& controller, vm::ptr<CellGemState>& gem_state, f32 x_pos, f32 y_pos, ps_move_data& move_data)
 {
 	const auto& shared_data = g_fxo->get<gem_camera_shared>();
@@ -1933,7 +1940,7 @@ static inline void pos_to_gem_state(u32 gem_num, gem_config::gem_controller& con
 		const bool was_spinning = spin.active;
 		auto& middle = gem.mouse_middle_gesture[gem_num];
 		middle.update((gem_state->pad.digitalbuttons & CELL_GEM_CTRL_SQUARE) != 0,
-			x_pos <= 0.f || x_pos >= 1.f || y_pos <= 0.f || y_pos >= 1.f, shoot_point_down_enabled(gem_num));
+			x_pos <= 0.f || x_pos >= 1.f || y_pos <= 0.f || y_pos >= 1.f, shoot_offscreen_middle_enabled(gem_num));
 		const float angle = spin.update(now, shoot_spin_enabled(gem_num) && middle.held && !middle.point_down);
 		auto& origin = gem.mouse_spin_origin[gem_num];
 		if (spin.active && !was_spinning)

@@ -24,6 +24,7 @@
 
 #include <cmath> // for fmod
 #include <type_traits>
+#include <deque>
 
 LOG_CHANNEL(cellGem);
 
@@ -246,6 +247,12 @@ public:
 	u64 start_timestamp_us = 0;
 
 	std::array<ps_move_data, CELL_GEM_MAX_NUM> fake_move_data {}; // No need to be in savestate
+
+	// Transient synthetic samples for The Shoot's timestamp-based input queries.
+	std::mutex mouse_history_mutex;
+	std::array<std::deque<CellGemState>, CELL_GEM_MAX_NUM> mouse_history;
+	u64 mouse_history_epoch = 0;
+
 
 	atomic_t<u32> m_wake_up = 0;
 	atomic_t<u32> m_done = 0;
@@ -3536,6 +3543,46 @@ error_code cellGemGetState(u32 gem_num, u32 flag, u64 time_parameter, vm::ptr<Ce
 	if (!controller.hue_set)
 	{
 		return CELL_GEM_HUE_NOT_SET;
+	}
+
+	// The Shoot compares timestamped samples. Returning the live state for every
+	// historical request discards motion and button transitions between samples.
+	// Keep this experimental compatibility change scoped to its raw-mouse profile.
+	if (g_cfg.io.move == move_handler::raw_mouse && Emu.GetTitleID() == "BCUS98222")
+	{
+		std::lock_guard history_lock(gem.mouse_history_mutex);
+		if (gem.mouse_history_epoch != gem.start_timestamp_us)
+		{
+			for (auto& samples : gem.mouse_history) samples.clear();
+			gem.mouse_history_epoch = gem.start_timestamp_us;
+		}
+
+		auto& samples = gem.mouse_history[gem_num];
+		const u64 now = gem_state->timestamp;
+		if (!samples.empty() && now < static_cast<u64>(samples.back().timestamp)) samples.clear();
+		if (samples.empty() || now - static_cast<u64>(samples.back().timestamp) >= 1000)
+		{
+			samples.push_back(*gem_state);
+			if (samples.size() > 512) samples.pop_front();
+		}
+
+		if (flag == CELL_GEM_STATE_FLAG_TIMESTAMP ||
+			(flag == CELL_GEM_STATE_FLAG_CURRENT_TIME && static_cast<s64>(time_parameter) < 0))
+		{
+			const s64 requested = flag == CELL_GEM_STATE_FLAG_TIMESTAMP
+				? static_cast<s64>(time_parameter) : static_cast<s64>(now) + static_cast<s64>(time_parameter);
+			if (requested < 0 || samples.empty() || static_cast<u64>(requested) < static_cast<u64>(samples.front().timestamp))
+				return CELL_GEM_TIME_OUT_OF_RANGE;
+
+			for (auto sample = samples.rbegin(); sample != samples.rend(); ++sample)
+			{
+				if (static_cast<u64>(sample->timestamp) <= static_cast<u64>(requested))
+				{
+					*gem_state = *sample;
+					break;
+				}
+			}
+		}
 	}
 
 	return CELL_OK;

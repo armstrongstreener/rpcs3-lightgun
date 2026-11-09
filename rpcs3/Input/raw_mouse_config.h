@@ -26,6 +26,7 @@ public:
 	using cfg::node::node;
 
 	cfg::string device{this, "Device", ""};
+	cfg::_bool shoot_spin_360{this, "The Shoot Spin 360", false, true};
 
 	cfg::_float<10, 1000> mouse_acceleration{this, "Mouse Acceleration", 100.0f, true};
 
@@ -85,3 +86,5 @@ private:
 };
 
 extern raw_mice_config g_cfg_raw_mouse;
+
+

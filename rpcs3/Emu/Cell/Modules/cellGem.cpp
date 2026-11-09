@@ -252,6 +252,9 @@ public:
 	std::mutex mouse_history_mutex;
 	std::array<std::deque<CellGemState>, CELL_GEM_MAX_NUM> mouse_history;
 	u64 mouse_history_epoch = 0;
+	std::array<u64, CELL_GEM_MAX_NUM> mouse_orientation_time{};
+	std::array<ps_move_data::vect<4>, CELL_GEM_MAX_NUM> mouse_previous_orientation{};
+
 
 
 	atomic_t<u32> m_wake_up = 0;
@@ -1900,6 +1903,41 @@ static inline void pos_to_gem_state(u32 gem_num, gem_config::gem_controller& con
 		quat.w() = cr * cp * cy + sr * sp * sy;
 	}
 
+	// Supply a coherent inertial stream for the retail game's mouse-backed Move.
+	// A changing quaternion with an always-zero gyro describes conflicting motion.
+	if (g_cfg.io.move == move_handler::raw_mouse && Emu.GetTitleID() == "BCUS98222")
+	{
+		auto& gem = g_fxo->get<gem_config>();
+		std::lock_guard history_lock(gem.mouse_history_mutex);
+		const u64 now = get_guest_system_time();
+		u64& previous_time = gem.mouse_orientation_time[gem_num];
+		auto& previous = gem.mouse_previous_orientation[gem_num];
+		if (previous_time == 0 || now < previous_time || now - previous_time >= 1000)
+		{
+			move_data.gyro = {};
+			if (previous_time != 0 && now > previous_time && now - previous_time <= 100'000)
+			{
+				// conjugate(previous) * current: rotation in the controller's frame.
+				const f32 dx = previous.w()*quat.x() - previous.x()*quat.w() - previous.y()*quat.z() + previous.z()*quat.y();
+				const f32 dy = previous.w()*quat.y() + previous.x()*quat.z() - previous.y()*quat.w() - previous.z()*quat.x();
+				const f32 dz = previous.w()*quat.z() - previous.x()*quat.y() + previous.y()*quat.x() - previous.z()*quat.w();
+				const f32 dw = previous.w()*quat.w() + previous.x()*quat.x() + previous.y()*quat.y() + previous.z()*quat.z();
+				const f32 length = std::sqrt(dx*dx + dy*dy + dz*dz);
+				if (length > 0.000001f)
+				{
+					const f32 scale = 2.0f * std::atan2(length, std::abs(dw)) / length * (1'000'000.0f / (now - previous_time)) * (dw < 0.0f ? -1.0f : 1.0f);
+					move_data.gyro = ps_move_data::vect<3>({dx*scale, dy*scale, dz*scale});
+				}
+			}
+			previous = quat;
+			previous_time = now;
+		}
+		const ps_move_data::vect<4> inverse({-quat.x(), -quat.y(), -quat.z(), quat.w()});
+		move_data.accelerometer = ps_move_data::rotate_vector(inverse, ps_move_data::vect<3>({0.f, 0.f, 1.f}));
+		move_data.angvel_world = ps_move_data::rotate_vector(quat, move_data.gyro);
+		for (u32 i = 0; i < 3; i++) gem_state->angvel[i] = move_data.angvel_world[i];
+	}
+
 	gem_state->quat[0] = quat.x();
 	gem_state->quat[1] = quat.y();
 	gem_state->quat[2] = quat.z();
@@ -3319,6 +3357,17 @@ error_code cellGemGetInertialState(u32 gem_num, u32 state_flag, u64 timestamp, v
 		case move_handler::mouse:
 		case move_handler::raw_mouse:
 			mouse_input_to_pad(gem_num, inertial_state->pad.digitalbuttons, inertial_state->pad.analog_T);
+			if (g_cfg.io.move == move_handler::raw_mouse && Emu.GetTitleID() == "BCUS98222")
+			{
+				std::lock_guard history_lock(gem.mouse_history_mutex);
+				const auto& data = gem.fake_move_data[gem_num];
+				for (u32 i = 0; i < 3; i++)
+				{
+					inertial_state->accelerometer[i] = data.accelerometer[i];
+					inertial_state->gyro[i] = get_guest_system_time() - gem.mouse_orientation_time[gem_num] <= 100'000 ? data.gyro[i] : 0.f;
+				}
+			}
+
 			break;
 #ifdef HAVE_LIBEVDEV
 		case move_handler::gun:

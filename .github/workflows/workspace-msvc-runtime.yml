@@ -1,0 +1,38 @@
+name: Package workspace MSVC runtime libraries
+on:
+  push:
+    branches: [mlgb-lightgun]
+    paths: [.github/workflows/workspace-msvc-runtime.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: windows-2025-vs2026
+    timeout-minutes: 10
+    steps:
+      - name: Collect runtime link libraries from the hosted compiler
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vs = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vs) { throw 'MSVC compiler installation not found.' }
+          $tools = Get-ChildItem (Join-Path $vs 'VC/Tools/MSVC') -Directory | Sort-Object Name -Descending | Select-Object -First 1
+          $libSource = Join-Path $tools.FullName 'lib/x64'
+          $destination = Join-Path $env:GITHUB_WORKSPACE 'kit/MSVC-Runtime/lib/x64'
+          New-Item -ItemType Directory -Path $destination -Force | Out-Null
+          foreach ($name in @('libcpmt.lib','libcmt.lib','libvcruntime.lib','libconcrt.lib','oldnames.lib')) {
+            $file = Join-Path $libSource $name
+            if (Test-Path -LiteralPath $file) { Copy-Item -LiteralPath $file -Destination $destination }
+          }
+          if (-not (Test-Path (Join-Path $destination 'libcpmt.lib'))) { throw 'C++ runtime library missing.' }
+          "Hosted MSVC toolset: $($tools.Name)`nThese are workspace link libraries, not an installer." | Set-Content kit/MSVC-Runtime/BUILD-INFO.txt
+          Get-ChildItem $destination -File | Get-FileHash -Algorithm SHA256 | Select-Object Hash,@{Name='Name';Expression={Split-Path $_.Path -Leaf}} | ConvertTo-Json | Set-Content kit/MSVC-Runtime/SHA256.json
+          Compress-Archive -Path kit/MSVC-Runtime -DestinationPath MSVC-Workspace-Runtime.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MSVC-Workspace-Runtime
+          path: MSVC-Workspace-Runtime.zip
+          compression-level: 0
+          retention-days: 7
+          if-no-files-found: error

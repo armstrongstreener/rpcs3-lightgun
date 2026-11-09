@@ -255,6 +255,7 @@ public:
 	std::array<std::deque<CellGemState>, CELL_GEM_MAX_NUM> mouse_history;
 	u64 mouse_history_epoch = 0;
 	std::array<lightgun_spin, CELL_GEM_MAX_NUM> mouse_spin;
+	std::array<lightgun_middle_gesture, CELL_GEM_MAX_NUM> mouse_middle_gesture;
 	std::array<ps_move_data::vect<3>, CELL_GEM_MAX_NUM> mouse_spin_origin;
 	std::array<u64, CELL_GEM_MAX_NUM> mouse_orientation_time{};
 	std::array<ps_move_data::vect<4>, CELL_GEM_MAX_NUM> mouse_previous_orientation{};
@@ -1860,6 +1861,13 @@ static bool shoot_spin_enabled(u32 player)
 	return g_cfg_raw_mouse.players[player]->shoot_spin_360.get();
 }
 
+static bool shoot_point_down_enabled(u32 player)
+{
+	if (g_cfg.io.move != move_handler::raw_mouse || Emu.GetTitleID() != "BCUS98222" || player >= g_cfg_raw_mouse.players.size()) return false;
+	reader_lock config_lock(g_cfg_raw_mouse.m_mutex);
+	return g_cfg_raw_mouse.players[player]->shoot_point_down.get();
+}
+
 static inline void pos_to_gem_state(u32 gem_num, gem_config::gem_controller& controller, vm::ptr<CellGemState>& gem_state, f32 x_pos, f32 y_pos, ps_move_data& move_data)
 {
 	const auto& shared_data = g_fxo->get<gem_camera_shared>();
@@ -1923,8 +1931,10 @@ static inline void pos_to_gem_state(u32 gem_num, gem_config::gem_controller& con
 		const u64 now = get_guest_system_time();
 		auto& spin = gem.mouse_spin[gem_num];
 		const bool was_spinning = spin.active;
-		const float angle = spin.update(now, shoot_spin_enabled(gem_num) &&
-			(gem_state->pad.digitalbuttons & CELL_GEM_CTRL_SQUARE));
+		auto& middle = gem.mouse_middle_gesture[gem_num];
+		middle.update((gem_state->pad.digitalbuttons & CELL_GEM_CTRL_SQUARE) != 0,
+			x_pos <= 0.f || x_pos >= 1.f || y_pos <= 0.f || y_pos >= 1.f, shoot_point_down_enabled(gem_num));
+		const float angle = spin.update(now, shoot_spin_enabled(gem_num) && middle.held && !middle.point_down);
 		auto& origin = gem.mouse_spin_origin[gem_num];
 		if (spin.active && !was_spinning)
 		{
@@ -1947,6 +1957,18 @@ static inline void pos_to_gem_state(u32 gem_num, gem_config::gem_controller& con
 			gem_state->pos[2] = origin.z() + offset[1];
 		}
 
+		if (!spin.active && shoot_point_down_enabled(gem_num) &&
+			((gem_state->pad.digitalbuttons & CELL_GEM_CTRL_TRIANGLE) || middle.point_down))
+		{
+			// Pitch the virtual controller toward the floor while the binding is held.
+			constexpr float c = 0.7071067811865475f, s = -c;
+			const auto base = quat;
+			quat.x() = c*base.x() + s*base.w();
+			quat.y() = c*base.y() - s*base.z();
+			quat.z() = c*base.z() + s*base.y();
+			quat.w() = c*base.w() - s*base.x();
+		}
+		if (shoot_point_down_enabled(gem_num)) gem_state->pad.digitalbuttons &= ~CELL_GEM_CTRL_TRIANGLE;
 		// The virtual Square slot carries this gesture rather than a game button.
 		if (shoot_spin_enabled(gem_num)) gem_state->pad.digitalbuttons &= ~CELL_GEM_CTRL_SQUARE;
 		u64& previous_time = gem.mouse_orientation_time[gem_num];
@@ -3401,6 +3423,7 @@ error_code cellGemGetInertialState(u32 gem_num, u32 state_flag, u64 timestamp, v
 				std::lock_guard history_lock(gem.mouse_history_mutex);
 				const auto& data = gem.fake_move_data[gem_num];
 				if (shoot_spin_enabled(gem_num)) inertial_state->pad.digitalbuttons &= ~CELL_GEM_CTRL_SQUARE;
+				if (shoot_point_down_enabled(gem_num)) inertial_state->pad.digitalbuttons &= ~CELL_GEM_CTRL_TRIANGLE;
 				for (u32 i = 0; i < 3; i++)
 				{
 					inertial_state->accelerometer[i] = data.accelerometer[i];

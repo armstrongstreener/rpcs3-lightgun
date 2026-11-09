@@ -6,7 +6,7 @@
 // One complete turn per press; holding the input does not repeat it.
 struct lightgun_spin
 {
-    static constexpr std::uint64_t duration_us = 1'200'000;
+    static constexpr std::uint64_t duration_us = 600'000;
     // Horizontal arm orbit, in millimetres, relative to the starting sphere.
     static constexpr float orbit_radius_mm = 600.f;
     static std::array<float, 2> orbit(float angle)
@@ -28,6 +28,19 @@ struct lightgun_spin
         const auto elapsed = now - started;
         if (elapsed >= duration_us) { active = false; return 0.f; }
         return 6.283185307179586f * static_cast<float>(elapsed) / duration_us;
+    }
+};
+
+// Decide on the press edge, so crossing the screen border cannot change actions.
+struct lightgun_middle_gesture
+{
+    bool held = false;
+    bool point_down = false;
+    void update(bool pressed, bool offscreen, bool allow_point_down)
+    {
+        if (!pressed) point_down = false;
+        else if (!held) point_down = allow_point_down && offscreen;
+        held = pressed;
     }
 };
 

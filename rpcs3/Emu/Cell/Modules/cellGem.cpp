@@ -1875,6 +1875,13 @@ static bool shoot_offscreen_middle_enabled(u32 player)
 	return g_cfg_raw_mouse.players[player]->shoot_offscreen_middle.get();
 }
 
+static bool shoot_point_up_enabled(u32 player)
+{
+	if (g_cfg.io.move != move_handler::raw_mouse || Emu.GetTitleID() != "BCUS98222" || player >= g_cfg_raw_mouse.players.size()) return false;
+	reader_lock config_lock(g_cfg_raw_mouse.m_mutex);
+	return g_cfg_raw_mouse.players[player]->shoot_point_up_offscreen.get();
+}
+
 static inline void pos_to_gem_state(u32 gem_num, gem_config::gem_controller& controller, vm::ptr<CellGemState>& gem_state, f32 x_pos, f32 y_pos, ps_move_data& move_data)
 {
 	const auto& shared_data = g_fxo->get<gem_camera_shared>();
@@ -1946,7 +1953,7 @@ static inline void pos_to_gem_state(u32 gem_num, gem_config::gem_controller& con
 		if (spin.active && !was_spinning)
 		{
 			origin = ps_move_data::vect<3>({gem_state->pos[0], gem_state->pos[1], gem_state->pos[2]});
-			cellGem.notice("The Shoot P%d: started middle-button Showtime turn (yaw + 600 mm orbit)", gem_num + 1);
+			cellGem.notice("The Shoot P%d: started Showtime turn (yaw + 600 mm orbit)", gem_num + 1);
 		}
 		if (spin.active)
 		{
@@ -1964,17 +1971,23 @@ static inline void pos_to_gem_state(u32 gem_num, gem_config::gem_controller& con
 			gem_state->pos[2] = origin.z() + offset[1];
 		}
 
-		if (!spin.active && shoot_point_down_enabled(gem_num) &&
-			((gem_state->pad.digitalbuttons & CELL_GEM_CTRL_TRIANGLE) || middle.point_down))
+		const bool point_down = shoot_point_down_enabled(gem_num) &&
+			((gem_state->pad.digitalbuttons & CELL_GEM_CTRL_TRIANGLE) || middle.point_down);
+		const bool offscreen = x_pos <= 0.f || x_pos >= 1.f || y_pos <= 0.f || y_pos >= 1.f;
+		const int vertical = lightgun_vertical_direction(spin.active, point_down, offscreen, shoot_point_up_enabled(gem_num));
+		if (vertical != 0)
 		{
-			// Pitch the virtual controller toward the floor while the binding is held.
-			constexpr float c = 0.7071067811865475f, s = -c;
+			// Off-screen prepares the upward pose; the player's real trigger supplies
+			// the new-press edge required by the game's shoot-in-air gesture.
+			constexpr float c = 0.7071067811865475f;
+			const float s = c * vertical;
 			const auto base = quat;
 			quat.x() = c*base.x() + s*base.w();
 			quat.y() = c*base.y() - s*base.z();
 			quat.z() = c*base.z() + s*base.y();
 			quat.w() = c*base.w() - s*base.x();
 		}
+
 		if (shoot_point_down_enabled(gem_num)) gem_state->pad.digitalbuttons &= ~CELL_GEM_CTRL_TRIANGLE;
 		// The virtual Square slot carries this gesture rather than a game button.
 		if (shoot_spin_enabled(gem_num)) gem_state->pad.digitalbuttons &= ~CELL_GEM_CTRL_SQUARE;

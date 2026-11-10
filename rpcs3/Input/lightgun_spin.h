@@ -44,3 +44,11 @@ struct lightgun_middle_gesture
     }
 };
 
+// Explicit floor input takes priority over the off-screen air-shot pose.
+inline int lightgun_vertical_direction(bool spinning, bool point_down, bool offscreen, bool allow_point_up)
+{
+    if (spinning) return 0;
+    if (point_down) return -1;
+    return offscreen && allow_point_up ? 1 : 0;
+}
+

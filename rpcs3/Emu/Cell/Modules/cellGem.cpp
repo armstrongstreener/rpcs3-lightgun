@@ -2771,15 +2771,15 @@ static void mouse_pos_to_gem_state(u32 mouse_no, gem_config::gem_controller& con
 
 		// Temporary, rate-limited diagnostics for the retail game's stuck menu cursor.
 		// Observe synthetic Move output without altering tracking or bypassing menus.
-		if (Emu.GetTitleID() == "BCUS98222" && mouse_no < CELL_GEM_MAX_NUM)
+		if ((Emu.GetTitleID() == "BCUS98222" || Emu.GetTitleID() == "BLUS30774") && mouse_no < CELL_GEM_MAX_NUM)
 		{
 			static std::array<atomic_t<u64>, CELL_GEM_MAX_NUM> last_log{};
 			const u64 now = get_guest_system_time();
 			if (now - last_log[mouse_no].load() >= 1'000'000)
 			{
 				last_log[mouse_no] = now;
-				cellGem.notice("The Shoot Move P%d: raw=(%f,%f) pos=(%f,%f,%f) quat=(%f,%f,%f,%f) buttons=0x%x T=%d tracking=%d visible=%d calibrated=%d hue=%d",
-					mouse_no + 1, mouse.x_pos, mouse.y_pos,
+				cellGem.notice("%s Move P%d: raw=(%f,%f) pos=(%f,%f,%f) quat=(%f,%f,%f,%f) buttons=0x%x T=%d tracking=%d visible=%d calibrated=%d hue=%d",
+					Emu.GetTitleID(), mouse_no + 1, mouse.x_pos, mouse.y_pos,
 					static_cast<f32>(gem_state->pos[0]), static_cast<f32>(gem_state->pos[1]), static_cast<f32>(gem_state->pos[2]),
 					static_cast<f32>(gem_state->quat[0]), static_cast<f32>(gem_state->quat[1]), static_cast<f32>(gem_state->quat[2]), static_cast<f32>(gem_state->quat[3]),
 					static_cast<u16>(gem_state->pad.digitalbuttons), static_cast<u16>(gem_state->pad.analog_T),

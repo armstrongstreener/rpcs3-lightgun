@@ -1936,9 +1936,10 @@ static inline void pos_to_gem_state(u32 gem_num, gem_config::gem_controller& con
 		quat.w() = cr * cp * cy + sr * sp * sy;
 	}
 
-	// Supply a coherent inertial stream for the retail game's mouse-backed Move.
+	// Supply a coherent inertial stream for supported mouse-backed Move games.
 	// A changing quaternion with an always-zero gyro describes conflicting motion.
-	if (g_cfg.io.move == move_handler::raw_mouse && Emu.GetTitleID() == "BCUS98222")
+	if (g_cfg.io.move == move_handler::raw_mouse &&
+		(Emu.GetTitleID() == "BCUS98222" || Emu.GetTitleID() == "BLUS30774"))
 	{
 		auto& gem = g_fxo->get<gem_config>();
 		std::lock_guard history_lock(gem.mouse_history_mutex);
@@ -2778,10 +2779,11 @@ static void mouse_pos_to_gem_state(u32 mouse_no, gem_config::gem_controller& con
 			if (now - last_log[mouse_no].load() >= 1'000'000)
 			{
 				last_log[mouse_no] = now;
-				cellGem.notice("%s Move P%d: raw=(%f,%f) pos=(%f,%f,%f) quat=(%f,%f,%f,%f) buttons=0x%x T=%d tracking=%d visible=%d calibrated=%d hue=%d",
+				cellGem.notice("%s Move P%d: raw=(%f,%f) pos=(%f,%f,%f) quat=(%f,%f,%f,%f) angvel=(%f,%f,%f) buttons=0x%x T=%d tracking=%d visible=%d calibrated=%d hue=%d",
 					Emu.GetTitleID(), mouse_no + 1, mouse.x_pos, mouse.y_pos,
 					static_cast<f32>(gem_state->pos[0]), static_cast<f32>(gem_state->pos[1]), static_cast<f32>(gem_state->pos[2]),
 					static_cast<f32>(gem_state->quat[0]), static_cast<f32>(gem_state->quat[1]), static_cast<f32>(gem_state->quat[2]), static_cast<f32>(gem_state->quat[3]),
+					static_cast<f32>(gem_state->angvel[0]), static_cast<f32>(gem_state->angvel[1]), static_cast<f32>(gem_state->angvel[2]),
 					static_cast<u16>(gem_state->pad.digitalbuttons), static_cast<u16>(gem_state->pad.analog_T),
 					controller.enabled_tracking, controller.radius_valid, controller.calibrated_magnetometer, controller.hue_set);
 			}

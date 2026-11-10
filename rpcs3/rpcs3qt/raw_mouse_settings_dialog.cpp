@@ -190,6 +190,10 @@ void raw_mouse_settings_dialog::update_combo_box(usz player)
 	bool found_device = false;
 
 	QComboBox* combo = ::at32(m_device_combos, player);
+	combo->setEnabled(m_profile_title_id.empty());
+	combo->setToolTip(m_profile_title_id.empty()
+		? tr("Assign this player's gun for all games.")
+		: tr("Inherited from config/raw_mouse.yml. Switch to Global defaults to change gun assignments."));
 
 	combo->blockSignals(true);
 	combo->clear();
@@ -263,7 +267,7 @@ void raw_mouse_settings_dialog::add_tabs(QTabWidget* tabs)
 		auto& config = ::at32(g_cfg_raw_mouse.players, player);
 
 		QHBoxLayout* h_layout = new QHBoxLayout(this);
-		QGroupBox* gb = new QGroupBox(tr("Device"), this);
+		QGroupBox* gb = new QGroupBox(tr("Device (global assignment)"), this);
 		QComboBox* combo = new QComboBox(this);
 		m_device_combos.push_back(combo);
 
@@ -271,7 +275,7 @@ void raw_mouse_settings_dialog::add_tabs(QTabWidget* tabs)
 
 		connect(combo, &QComboBox::currentIndexChanged, this, [this, player, combo](int index)
 			{
-				if (index < 0 || !combo)
+				if (index < 0 || !combo || !m_profile_title_id.empty())
 					return;
 
 				const QVariant data = combo->itemData(index);
@@ -398,7 +402,13 @@ void raw_mouse_settings_dialog::on_enumeration()
 
 void raw_mouse_settings_dialog::reset_config()
 {
+	std::array<std::string, 4> devices;
+	for (usz i = 0; i < devices.size(); ++i) devices[i] = g_cfg_raw_mouse.players[i]->device.to_string();
 	g_cfg_raw_mouse.from_default();
+	if (!m_profile_title_id.empty())
+	{
+		for (usz i = 0; i < devices.size(); ++i) g_cfg_raw_mouse.players[i]->device.from_string(devices[i]);
+	}
 	refresh_config_widgets();
 }
 

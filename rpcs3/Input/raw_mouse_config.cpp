@@ -1,5 +1,7 @@
 #include "stdafx.h"
 #include "raw_mouse_config.h"
+#include "raw_mouse_profile.h"
+#include "util/yaml.hpp"
 #include "Emu/Io/MouseHandler.h"
 
 LOG_CHANNEL(cfg_log, "CFG");
@@ -146,11 +148,24 @@ bool raw_mice_config::load(const std::string& title_id)
 		if (fs::file file{profile_name, fs::read})
 		{
 			const std::string inherited = to_string();
-			if (const std::string content = file.to_string(); !content.empty() && !from_string(content))
+			if (const std::string content = file.to_string(); !content.empty())
 			{
-				from_string(inherited);
-				cfg_log.error("Invalid lightgun profile: %s. Using global bindings.", profile_name);
-				result = false;
+				auto [profile, error] = yaml_load(content);
+				bool valid = error.empty() && profile.IsMap();
+				if (valid)
+				{
+					// Ignore legacy per-game IDs, including empty/disconnected entries.
+					strip_raw_mouse_profile_devices(profile);
+					YAML::Emitter out;
+					out << profile;
+					valid = out.good() && from_string(std::string(out.c_str(), out.size()));
+				}
+				if (!valid)
+				{
+					from_string(inherited);
+					cfg_log.error("Invalid lightgun profile: %s. Using global bindings.", profile_name);
+					result = false;
+				}
 			}
 		}
 	}
@@ -171,10 +186,36 @@ void raw_mice_config::save()
 		cfg_log.fatal("Failed to create path: %s (%s)", cfg_name, fs::g_tls_error);
 	}
 
-	if (!cfg::node::save(cfg_name))
+	bool saved = false;
+	if (m_title_id.empty())
+	{
+		saved = cfg::node::save(cfg_name);
+	}
+	else
+	{
+		auto [profile, error] = yaml_load(to_string());
+		if (error.empty() && profile.IsMap())
+		{
+			strip_raw_mouse_profile_devices(profile);
+			YAML::Emitter out;
+			out << profile;
+			if (out.good())
+			{
+				const std::string content(out.c_str(), out.size());
+				if (fs::pending_file file(cfg_name); file.file)
+				{
+					file.file.write(content);
+					saved = file.commit();
+				}
+			}
+		}
+	}
+	if (!saved)
 	{
 		cfg_log.error("Failed to save %s config to '%s' (error=%s)", cfg_id, cfg_name, fs::g_tls_error);
 	}
 
 	reload_requested = true;
 }
+
+

@@ -60,5 +60,19 @@ they do not change the routed PS Move button or establish a verified game contro
 
 The Shoot USA (BCUS98222) is the first acceptance target. Verify camera detection,
 P1 calibration, menu control and gameplay before testing P2 and any game-specific
-motion requirements. No calibration bypass or game-specific motion fix is included.
+motion requirements. Retail BCUS98222 has synthetic motion compatibility and gesture support under tutorial validation; there is no calibration bypass.
+
+
+## Global gun assignments
+
+Player device IDs are stored only in `config/raw_mouse.yml`. Per-game files in
+`config/input_configs/lightgun/<TITLEID>/raw_mouse.yml` inherit these assignments.
+Legacy per-game Device fields are ignored when loading, and Device fields are
+omitted when saving a game profile. Changing guns therefore requires updating
+only the global file.
+
+The game-profile UI shows the inherited device read-only. Switch the profile
+selector to Global defaults to change player gun assignments. Resetting a game
+profile preserves the global assignments; game buttons, alternatives, labels,
+acceleration and gesture switches remain independent settings.
 

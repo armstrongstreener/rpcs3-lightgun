@@ -1,0 +1,81 @@
+Player 1:
+  The Shoot Spin 360: true
+  The Shoot Point Down: true
+  The Shoot Point Up Offscreen: true
+  The Shoot Offscreen Middle: false
+  Mouse Acceleration: 100
+  Button 1: Button 1
+  Button 2: Key 393216
+  Button 3: Button 2
+  Button 4: Button 4
+  Button 5: Button 5
+  Button 6: Key 131072
+  Button 7: ""
+  Button 8: Button 3
+  Button 1 Alternate: ""
+  Action 1 Label: "T / Trigger"
+  Button 2 Alternate: Key 1245184
+  Action 2 Label: "Move (keyboard 5)"
+  Button 3 Alternate: ""
+  Action 3 Label: "Showtime (right click)"
+  Button 4 Alternate: ""
+  Action 4 Label: "Circle"
+  Button 5 Alternate: Key 1835008
+  Action 5 Label: "Cross"
+  Button 6 Alternate: ""
+  Action 6 Label: "Start"
+  Button 7 Alternate: ""
+  Action 7 Label: "Select"
+  Button 8 Alternate: Key 2228224
+  Action 8 Label: "Point down (hold middle click)"
+Player 2:
+  The Shoot Spin 360: true
+  The Shoot Point Down: true
+  The Shoot Point Up Offscreen: true
+  The Shoot Offscreen Middle: false
+  Mouse Acceleration: 100
+  Button 1: Button 1
+  Button 2: Key 393216
+  Button 3: Button 2
+  Button 4: Button 4
+  Button 5: Button 5
+  Button 6: Key 196608
+  Button 7: Key 458752
+  Button 8: Button 3
+  Button 1 Alternate: ""
+  Action 1 Label: "T / Trigger"
+  Button 2 Alternate: Key 1441792
+  Action 2 Label: "Move (keyboard 5)"
+  Button 3 Alternate: ""
+  Action 3 Label: "Showtime (right click)"
+  Button 4 Alternate: ""
+  Action 4 Label: "Circle"
+  Button 5 Alternate: Key 18612224
+  Action 5 Label: "Cross"
+  Button 6 Alternate: ""
+  Action 6 Label: "Start"
+  Button 7 Alternate: ""
+  Action 7 Label: "Select"
+  Button 8 Alternate: Key 2293760
+  Action 8 Label: "Point down (hold middle click)"
+Player 3:
+  Mouse Acceleration: 100
+  Button 1: Button 1
+  Button 2: Button 2
+  Button 3: Button 3
+  Button 4: Button 4
+  Button 5: Button 5
+  Button 6: ""
+  Button 7: ""
+  Button 8: ""
+Player 4:
+  Mouse Acceleration: 100
+  Button 1: Button 1
+  Button 2: Button 2
+  Button 3: Button 3
+  Button 4: Button 4
+  Button 5: Button 5
+  Button 6: ""
+  Button 7: ""
+  Button 8: ""
+

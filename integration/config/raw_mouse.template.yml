@@ -1,0 +1,76 @@
+Player 1:
+  Device: ""
+  Mouse Acceleration: 100
+  Button 1: Button 1
+  Button 2: Button 2
+  Button 3: Button 3
+  Button 4: Button 4
+  Button 5: Button 5
+  Button 6: Key 131072
+  Button 7: Key 393216
+  Button 8: Key 1310720
+  Button 1 Alternate: ""
+  Action 1 Label: "T / Trigger"
+  Button 2 Alternate: Key 1245184
+  Action 2 Label: "Move (game function unverified)"
+  Button 3 Alternate: ""
+  Action 3 Label: "Square"
+  Button 4 Alternate: ""
+  Action 4 Label: "Circle"
+  Button 5 Alternate: Key 1835008
+  Action 5 Label: "Cross"
+  Button 6 Alternate: ""
+  Action 6 Label: "Start"
+  Button 7 Alternate: ""
+  Action 7 Label: "Select"
+  Button 8 Alternate: ""
+  Action 8 Label: "Triangle"
+Player 2:
+  Device: ""
+  Mouse Acceleration: 100
+  Button 1: Button 1
+  Button 2: Button 2
+  Button 3: Button 3
+  Button 4: Button 4
+  Button 5: Button 5
+  Button 6: Key 196608
+  Button 7: Key 458752
+  Button 8: Key 1376256
+  Button 1 Alternate: ""
+  Action 1 Label: "T / Trigger"
+  Button 2 Alternate: Key 1441792
+  Action 2 Label: "Move (game function unverified)"
+  Button 3 Alternate: ""
+  Action 3 Label: "Square"
+  Button 4 Alternate: ""
+  Action 4 Label: "Circle"
+  Button 5 Alternate: Key 18612224
+  Action 5 Label: "Cross"
+  Button 6 Alternate: ""
+  Action 6 Label: "Start"
+  Button 7 Alternate: ""
+  Action 7 Label: "Select"
+  Button 8 Alternate: ""
+  Action 8 Label: "Triangle"
+Player 3:
+  Device: ""
+  Mouse Acceleration: 100
+  Button 1: Button 1
+  Button 2: Button 2
+  Button 3: Button 3
+  Button 4: Button 4
+  Button 5: Button 5
+  Button 6: ""
+  Button 7: ""
+  Button 8: ""
+Player 4:
+  Device: ""
+  Mouse Acceleration: 100
+  Button 1: Button 1
+  Button 2: Button 2
+  Button 3: Button 3
+  Button 4: Button 4
+  Button 5: Button 5
+  Button 6: ""
+  Button 7: ""
+  Button 8: ""

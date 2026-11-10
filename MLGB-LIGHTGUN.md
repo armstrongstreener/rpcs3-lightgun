@@ -26,8 +26,9 @@ held while the other is still pressed.
 
 Game files live in `config/input_configs/lightgun/TITLE/raw_mouse.yml`.
 Missing game profiles inherit `config/raw_mouse.yml`. Existing primary mappings
-remain supported. Profiles currently include physical gun assignments, so select
-the new devices again when changing guns in an existing profile.
+remain supported. Gun assignments come only from the global file; game profiles ignore legacy
+Device fields and omit them on save. See integration/README.md for the current
+motion/gesture integration handoff and ID-free example profiles.
 
 Keyboard input retains upstream's shared keyboard handling: it is not isolated
 by physical keyboard device. Assign distinct key codes to different players to

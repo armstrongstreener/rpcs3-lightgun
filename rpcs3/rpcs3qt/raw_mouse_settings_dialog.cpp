@@ -353,6 +353,29 @@ void raw_mouse_settings_dialog::add_tabs(QTabWidget* tabs)
 		gb->setLayout(h_layout);
 		grid_layout->addWidget(gb, grid_layout->rowCount(), 0);
 
+		const int scale_row = grid_layout->rowCount();
+		m_move_scale_spin_boxes.emplace_back();
+		for (usz axis = 0; axis < 2; ++axis)
+		{
+			auto* group = new QGroupBox(axis == 0 ? tr("Horizontal aim scale") : tr("Vertical aim scale"), this);
+			auto* layout = new QHBoxLayout(group);
+			auto* scale = new QDoubleSpinBox(group);
+			scale->setRange(10.0, 200.0);
+			scale->setDecimals(1);
+			scale->setSuffix(QStringLiteral("%"));
+			scale->setValue(axis == 0 ? config->move_aim_scale_h.get() : config->move_aim_scale_v.get());
+			scale->setToolTip(tr("100% keeps normal aim. Lower this if the crosshair travels past your aim near the screen edges. Raw Mouse PS Move only."));
+			m_move_scale_spin_boxes.back()[axis] = scale;
+			connect(scale, &QDoubleSpinBox::valueChanged, this, [player, axis](double value)
+				{
+					auto& config = *g_cfg_raw_mouse.players[player];
+					if (axis == 0) config.move_aim_scale_h.set(value);
+					else config.move_aim_scale_v.set(value);
+				});
+			layout->addWidget(scale);
+			grid_layout->addWidget(group, scale_row, static_cast<int>(axis));
+		}
+
 		widget->setLayout(grid_layout);
 		tabs->addTab(widget, tr("Player %0").arg(player + 1));
 	}
@@ -438,6 +461,13 @@ void raw_mouse_settings_dialog::refresh_config_widgets()
 		if (QComboBox* combo = ::at32(m_device_combos, player))
 		{
 			combo->setCurrentIndex(combo->findData(QString::fromStdString(config->device.to_string())));
+		}
+
+		for (usz axis = 0; axis < 2; ++axis)
+		{
+			QDoubleSpinBox* scale = m_move_scale_spin_boxes[player][axis];
+			const QSignalBlocker blocker(scale);
+			scale->setValue(axis == 0 ? config->move_aim_scale_h.get() : config->move_aim_scale_v.get());
 		}
 
 		if (QDoubleSpinBox* sb = ::at32(m_accel_spin_boxes, player))

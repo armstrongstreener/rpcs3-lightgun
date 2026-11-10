@@ -32,6 +32,8 @@ public:
 	cfg::_bool shoot_offscreen_middle{this, "The Shoot Offscreen Middle", false, true};
 
 	cfg::_float<10, 1000> mouse_acceleration{this, "Mouse Acceleration", 100.0f, true};
+	cfg::_float<10, 200> move_aim_scale_h{this, "Move Aim Scale Horizontal", 100.0f, true};
+	cfg::_float<10, 200> move_aim_scale_v{this, "Move Aim Scale Vertical", 100.0f, true};
 
 	cfg::string mouse_button_1{this, "Button 1", "Button 1", true};
 	cfg::string mouse_button_2{this, "Button 2", "Button 2", true};

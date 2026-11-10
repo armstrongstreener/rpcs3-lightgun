@@ -47,6 +47,7 @@ private:
 	QTabWidget* m_tab_widget = nullptr;
 	std::vector<QComboBox*> m_device_combos;
 	std::vector<QDoubleSpinBox*> m_accel_spin_boxes;
+	std::vector<std::array<QDoubleSpinBox*, 2>> m_move_scale_spin_boxes;
 	std::vector<std::array<QLineEdit*, 8>> m_action_labels;
 
 	// Buttons
@@ -71,3 +72,4 @@ private:
 protected:
 	bool eventFilter(QObject* object, QEvent* event) override;
 };
+

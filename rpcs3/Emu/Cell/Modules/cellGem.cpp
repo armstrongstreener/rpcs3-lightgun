@@ -17,6 +17,7 @@
 #include "Input/pad_thread.h"
 #include "Input/raw_mouse_config.h"
 #include "Input/lightgun_spin.h"
+#include "Input/lightgun_aim_scale.h"
 #include "Input/ps_move_config.h"
 #include "Input/ps_move_tracker.h"
 
@@ -2764,11 +2765,20 @@ static void mouse_pos_to_gem_state(u32 mouse_no, gem_config::gem_controller& con
 	}
 
 	const auto& mouse = ::at32(handler.GetMice(), mouse_no);
+	float aim_x = mouse.x_pos, aim_y = mouse.y_pos;
+	if (g_cfg.io.move == move_handler::raw_mouse && mouse_no < g_cfg_raw_mouse.players.size())
+	{
+		reader_lock config_lock(g_cfg_raw_mouse.m_mutex);
+		const auto& config = g_cfg_raw_mouse.players[mouse_no];
+		aim_x = lightgun_scale_axis(aim_x, static_cast<float>(config->move_aim_scale_h.get()));
+		aim_y = lightgun_scale_axis(aim_y, static_cast<float>(config->move_aim_scale_v.get()));
+	}
+
 
 	if constexpr (std::is_same_v<T, vm::ptr<CellGemState>>)
 	{
 		ps_move_data& move_data = ::at32(g_fxo->get<gem_config>().fake_move_data, mouse_no);
-		pos_to_gem_state(mouse_no, controller, gem_state, mouse.x_pos, mouse.y_pos, move_data);
+		pos_to_gem_state(mouse_no, controller, gem_state, aim_x, aim_y, move_data);
 
 		// Temporary, rate-limited diagnostics for the retail game's stuck menu cursor.
 		// Observe synthetic Move output without altering tracking or bypassing menus.
@@ -2791,7 +2801,7 @@ static void mouse_pos_to_gem_state(u32 mouse_no, gem_config::gem_controller& con
 	}
 	else if constexpr (std::is_same_v<T, vm::ptr<CellGemImageState>>)
 	{
-		pos_to_gem_image_state(mouse_no, controller, gem_state, mouse.x_pos, mouse.y_pos);
+		pos_to_gem_image_state(mouse_no, controller, gem_state, aim_x, aim_y);
 	}
 }
 
